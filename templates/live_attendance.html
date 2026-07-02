@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Live Attendance - Smart Face Recognition Attendance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="{{ url_for('dashboard.index') }}">Home</a>
+        <span class="separator"><i class="fas fa-chevron-right"></i></span>
+        <a href="{{ url_for('attendance.index') }}">Attendance</a>
+        <span class="separator"><i class="fas fa-chevron-right"></i></span>
+    </div>
+    <div class="page-title">Live Face Recognition</div>
+    <div class="page-subtitle">Real-time face detection and attendance marking</div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card fade-in">
+            <div class="card-header">
+                <div class="card-title"><i class="fas fa-video" style="color: var(--danger); margin-right: 8px;"></i> Camera Feed</div>
+                <div>
+                    <button id="start-camera" class="btn btn-success">
+                        <i class="fas fa-play"></i> Start Camera
+                    </button>
+                    <button id="stop-camera" class="btn btn-danger" style="display: none;">
+                        <i class="fas fa-stop"></i> Stop Camera
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <div class="camera-container">
+                    <img id="video-feed" src="" alt="Camera Feed" style="display: block;">
+                    <div class="camera-overlay"></div>
+                    <div class="camera-status">
+                        <i class="fas fa-circle" style="color: var(--danger); font-size: 8px;"></i>
+                        <span id="cam-status-text">Click Start to begin</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card fade-in">
+            <div class="card-header">
+                <div class="card-title"><i class="fas fa-user-check" style="color: var(--success); margin-right: 8px;"></i> Recognized</div>
+            </div>
+            <div class="card-body" id="recognized-list" style="max-height: 500px; overflow-y: auto;">
+                <div class="empty-state">
+                    <i class="fas fa-user"></i>
+                    <h3>No faces recognized yet</h3>
+                    <p>Start the camera to begin face recognition</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

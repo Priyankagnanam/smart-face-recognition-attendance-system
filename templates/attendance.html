@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Attendance - Smart Face Recognition Attendance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="{{ url_for('dashboard.index') }}">Home</a>
+        <span class="separator"><i class="fas fa-chevron-right"></i></span>
+    </div>
+    <div class="page-title">Today's Attendance</div>
+    <div class="page-subtitle">View all attendance records for today</div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card fade-in">
+        <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+        <div class="stat-value" id="today-count">0</div>
+        <div class="stat-label">Present Today</div>
+    </div>
+    <div class="stat-card fade-in">
+        <div class="stat-icon blue"><i class="fas fa-calendar-day"></i></div>
+        <div class="stat-value" id="today-date"></div>
+        <div class="stat-label">Current Date</div>
+    </div>
+    <div class="stat-card fade-in">
+        <div class="stat-icon cyan"><i class="fas fa-video"></i></div>
+        <div class="stat-value">
+            <a href="{{ url_for('attendance.live') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-play"></i> Live
+            </a>
+        </div>
+        <div class="stat-label">Take Attendance</div>
+    </div>
+</div>
+
+<div class="card fade-in">
+    <div class="card-header">
+        <div class="card-title"><i class="fas fa-clipboard-list" style="color: var(--success); margin-right: 8px;"></i> Today's Records</div>
+    </div>
+    <div class="card-body">
+        <div class="table-container">
+            <table id="today-attendance">
+                <thead>
+                    <tr>
+                        <th>Student ID</th>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th>Check-in Time</th>
+                        <th>Status</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

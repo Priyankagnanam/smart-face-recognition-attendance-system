@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Attendance History - Smart Face Recognition Attendance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="{{ url_for('dashboard.index') }}">Home</a>
+        <span class="separator"><i class="fas fa-chevron-right"></i></span>
+        <a href="{{ url_for('attendance.index') }}">Attendance</a>
+        <span class="separator"><i class="fas fa-chevron-right"></i></span>
+    </div>
+    <div class="page-title">Attendance History</div>
+    <div class="page-subtitle">View and search past attendance records</div>
+</div>
+
+<div class="card fade-in">
+    <div class="card-header">
+        <div class="card-title"><i class="fas fa-history" style="color: var(--info); margin-right: 8px;"></i> Records</div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="history-search" class="form-control" placeholder="Search student..." style="width: 180px; padding-left: 36px;">
+            </div>
+            <input type="date" id="date-from" class="form-control" style="width: 150px;">
+            <input type="date" id="date-to" class="form-control" style="width: 150px;">
+            <select id="history-dept" class="form-select" style="width: 150px;">
+                <option value="">All Departments</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Civil">Civil</option>
+                <option value="Electrical">Electrical</option>
+            </select>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-container">
+            <table id="history-table">
+                <thead>
+                    <tr>
+                        <th>Student ID</th>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="history-pagination" class="pagination"></div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Reports - Smart Face Recognition Attendance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="{{ url_for('dashboard.index') }}">Home</a>
+        <span class="separator"><i class="fas fa-chevron-right"></i></span>
+    </div>
+    <div class="page-title">Reports</div>
+    <div class="page-subtitle">Generate and export attendance reports</div>
+</div>
+
+<div class="card fade-in">
+    <div class="card-header">
+        <div class="card-title"><i class="fas fa-sliders-h" style="color: var(--primary); margin-right: 8px;"></i> Report Filters</div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <select id="report-type" class="form-select" style="width: 140px;">
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="department">Department</option>
+            </select>
+            <input type="date" id="report-date" class="form-control" style="width: 160px;">
+            <select id="report-dept" class="form-select" style="width: 180px;">
+                <option value="">All Departments</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Civil">Civil</option>
+                <option value="Electrical">Electrical</option>
+            </select>
+            <button id="generate-report" class="btn btn-primary btn-sm"><i class="fas fa-sync"></i> Generate</button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="stat-card fade-in">
+            <div class="stat-icon blue"><i class="fas fa-file-alt"></i></div>
+            <div class="stat-value" id="report-count">0</div>
+            <div class="stat-label">Total Records</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card fade-in">
+            <div class="stat-icon green"><i class="fas fa-check"></i></div>
+            <div class="stat-value" id="report-present">0</div>
+            <div class="stat-label">Present</div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card fade-in" style="height: 100%;">
+            <div class="card-body" style="display: flex; align-items: center; gap: 12px; justify-content: center;">
+                <button id="export-csv" class="btn btn-success"><i class="fas fa-file-csv"></i> Export CSV</button>
+                <button id="export-excel" class="btn btn-info"><i class="fas fa-file-excel"></i> Export Excel</button>
+                <button id="print-report" class="btn btn-warning"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card fade-in">
+    <div class="card-header">
+        <div class="card-title"><i class="fas fa-table" style="color: var(--accent); margin-right: 8px;"></i> Report Data</div>
+    </div>
+    <div class="card-body">
+        <div class="table-container">
+            <table id="report-table">
+                <thead>
+                    <tr>
+                        <th>Student ID</th>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# Database
+database/attendance.db
+database/attendance.db-journal
+
+# Datasets
+dataset/*
+
+# Trained Models
+trained_models/*
+
+# Exports
+exports/*
+
+# Logs
+logs/*.log
+
+# Uploads
+static/uploads/*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+*.env
+
+# Flask
+instance/

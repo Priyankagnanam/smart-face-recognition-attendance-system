@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Students - Smart Face Recognition Attendance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="{{ url_for('dashboard.index') }}">Home</a>
+        <span class="separator"><i class="fas fa-chevron-right"></i></span>
+    </div>
+    <div class="page-title">Students</div>
+    <div class="page-subtitle">Manage all registered students</div>
+</div>
+
+<div class="card fade-in">
+    <div class="card-header">
+        <div class="card-title"><i class="fas fa-users" style="color: var(--primary); margin-right: 8px;"></i> All Students</div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="student-search" class="form-control" placeholder="Search students..." style="width: 250px; padding-left: 36px;">
+            </div>
+            <a href="{{ url_for('student.register') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> Add Student
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-container">
+            <table id="students-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th>Year</th>
+                        <th>Section</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="students-pagination" class="pagination"></div>
+    </div>
+</div>
+
+<div id="edit-modal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Edit Student</div>
+            <button class="modal-close" onclick="App.closeModal('edit-modal')">&times;</button>
+        </div>
+        <form id="edit-form">
+            <div class="modal-body">
+                <input type="hidden" name="student_id">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" class="form-control" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Department</label>
+                    <select class="form-select" name="department" required>
+                        <option value="Computer Science">Computer Science</option>
+                        <option value="Information Technology">Information Technology</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Mechanical">Mechanical</option>
+                        <option value="Civil">Civil</option>
+                        <option value="Electrical">Electrical</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="form-group">
+                            <label class="form-label">Year</label>
+                            <select class="form-select" name="year" required>
+                                <option value="1">1st Year</option>
+                                <option value="2">2nd Year</option>
+                                <option value="3">3rd Year</option>
+                                <option value="4">4th Year</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="form-group">
+                            <label class="form-label">Section</label>
+                            <input type="text" class="form-control" name="section" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-control" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Phone</label>
+                    <input type="tel" class="form-control" name="phone">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="App.closeModal('edit-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

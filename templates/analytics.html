@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Analytics - Smart Face Recognition Attendance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="{{ url_for('dashboard.index') }}">Home</a>
+        <span class="separator"><i class="fas fa-chevron-right"></i></span>
+    </div>
+    <div class="page-title">Analytics</div>
+    <div class="page-subtitle">Visual insights and attendance trends</div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card fade-in">
+        <div class="stat-icon blue"><i class="fas fa-users"></i></div>
+        <div class="stat-value" id="analytics-total">0</div>
+        <div class="stat-label">Total Students</div>
+    </div>
+    <div class="stat-card fade-in">
+        <div class="stat-icon green"><i class="fas fa-calendar-check"></i></div>
+        <div class="stat-value" id="analytics-today">0</div>
+        <div class="stat-label">Today's Attendance</div>
+    </div>
+    <div class="stat-card fade-in">
+        <div class="stat-icon cyan"><i class="fas fa-bullseye"></i></div>
+        <div class="stat-value" id="analytics-accuracy">0%</div>
+        <div class="stat-label">Avg Accuracy</div>
+    </div>
+    <div class="stat-card fade-in">
+        <div class="stat-icon yellow"><i class="fas fa-calendar-week"></i></div>
+        <div class="stat-value" id="analytics-weekly">0</div>
+        <div class="stat-label">This Week</div>
+    </div>
+    <div class="stat-card fade-in">
+        <div class="stat-icon info"><i class="fas fa-calendar-alt"></i></div>
+        <div class="stat-value" id="analytics-monthly">0</div>
+        <div class="stat-label">This Month</div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card fade-in">
+            <div class="card-header"><div class="card-title"><i class="fas fa-chart-bar" style="color: var(--primary);"></i> Monthly Trend</div></div>
+            <div class="card-body"><div class="chart-container"><canvas id="monthlyChart"></canvas></div></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card fade-in">
+            <div class="card-header"><div class="card-title"><i class="fas fa-chart-line" style="color: var(--success);"></i> Daily Trend</div></div>
+            <div class="card-body"><div class="chart-container"><canvas id="dailyChart"></canvas></div></div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card fade-in">
+            <div class="card-header"><div class="card-title"><i class="fas fa-chart-pie" style="color: var(--warning);"></i> Department Distribution</div></div>
+            <div class="card-body"><div class="chart-container"><canvas id="deptChart"></canvas></div></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card fade-in">
+            <div class="card-header"><div class="card-title"><i class="fas fa-bullseye" style="color: var(--accent);"></i> Recognition Accuracy</div></div>
+            <div class="card-body"><div class="chart-container"><canvas id="accuracyChart"></canvas></div></div>
+        </div>
+    </div>
+</div>
+{% endblock %}

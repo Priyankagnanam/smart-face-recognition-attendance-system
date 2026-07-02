@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Settings - Smart Face Recognition Attendance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="{{ url_for('dashboard.index') }}">Home</a>
+        <span class="separator"><i class="fas fa-chevron-right"></i></span>
+    </div>
+    <div class="page-title">Settings</div>
+    <div class="page-subtitle">System configuration and information</div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card fade-in">
+            <div class="card-header">
+                <div class="card-title"><i class="fas fa-info-circle" style="color: var(--primary); margin-right: 8px;"></i> Application Info</div>
+            </div>
+            <div class="card-body">
+                <table style="width: 100%;">
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Application</td><td style="text-align: right;" id="app-name">-</td></tr>
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Version</td><td style="text-align: right;" id="app-version">-</td></tr>
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Company</td><td style="text-align: right;" id="company">-</td></tr>
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Support Email</td><td style="text-align: right;" id="support-email">-</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="card fade-in">
+            <div class="card-header">
+                <div class="card-title"><i class="fas fa-database" style="color: var(--success); margin-right: 8px;"></i> Database & Storage</div>
+            </div>
+            <div class="card-body">
+                <table style="width: 100%;">
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Dataset Images</td><td style="text-align: right;" id="dataset-count">-</td></tr>
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Model Status</td><td style="text-align: right;"><span id="model-status">-</span></td></tr>
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Database Size</td><td style="text-align: right;" id="db-size">-</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="card fade-in">
+            <div class="card-header">
+                <div class="card-title"><i class="fas fa-brain" style="color: var(--accent); margin-right: 8px;"></i> Model Training</div>
+            </div>
+            <div class="card-body">
+                <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
+                    Train the face recognition model using all captured student images in the dataset.
+                    Make sure you have registered students and captured their faces first.
+                </p>
+                <button id="train-model-btn" class="btn btn-primary btn-lg btn-block" onclick="App.trainModel()">
+                    <i class="fas fa-cogs"></i> Train Model
+                </button>
+                <div id="training-progress" style="display: none; margin-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
+                        <span id="training-status">Training...</span>
+                        <span id="training-pct">0%</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: var(--border-color); border-radius: 10px; overflow: hidden;">
+                        <div id="training-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); border-radius: 10px; transition: width 0.5s ease;"></div>
+                    </div>
+                </div>
+                <div id="training-result" style="display: none; margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 13px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card fade-in">
+            <div class="card-header">
+                <div class="card-title"><i class="fas fa-cubes" style="color: var(--accent); margin-right: 8px;"></i> Technology Stack</div>
+            </div>
+            <div class="card-body">
+                <table style="width: 100%;">
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Python</td><td style="text-align: right;" id="python-ver">-</td></tr>
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Web Framework</td><td style="text-align: right;" id="flask-ver">-</td></tr>
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Computer Vision</td><td style="text-align: right;" id="opencv-ver">-</td></tr>
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Face Recognition</td><td style="text-align: right;">InsightFace</td></tr>
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Database</td><td style="text-align: right;">SQLite</td></tr>
+                    <tr><td style="color: var(--text-muted); padding: 8px 0;">Frontend</td><td style="text-align: right;">Bootstrap 5 + Chart.js</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="card fade-in">
+            <div class="card-header">
+                <div class="card-title"><i class="fas fa-palette" style="color: var(--warning); margin-right: 8px;"></i> Theme</div>
+            </div>
+            <div class="card-body">
+                <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
+                    Toggle between dark and light mode using the theme button in the header.
+                </p>
+                <div style="display: flex; gap: 16px;">
+                    <div onclick="document.querySelector('.theme-toggle').click()" style="flex: 1; padding: 20px; border-radius: 12px; background: #0F172A; border: 2px solid var(--border-color); cursor: pointer; text-align: center;">
+                        <i class="fas fa-moon" style="color: #F1F5F9; font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                        <span style="color: #F1F5F9; font-size: 13px;">Dark Mode</span>
+                    </div>
+                    <div onclick="document.querySelector('.theme-toggle').click()" style="flex: 1; padding: 20px; border-radius: 12px; background: #F8FAFC; border: 2px solid var(--border-color); cursor: pointer; text-align: center;">
+                        <i class="fas fa-sun" style="color: #0F172A; font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                        <span style="color: #0F172A; font-size: 13px;">Light Mode</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
