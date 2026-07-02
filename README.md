@@ -248,12 +248,3 @@ of this software and associated documentation files...
 
 ---
 
-## Contributors
-
-- **Your Name** - *Lead Developer*
-
----
-
-## Support
-
-For support, email support@smartvision.tech or create an issue on GitHub.
