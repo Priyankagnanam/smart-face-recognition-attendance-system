@@ -1,3 +1,18 @@
+function csrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.content : '';
+}
+
+function apiFetch(url, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    const method = (options.method || 'GET').toUpperCase();
+    if (method !== 'GET') {
+        options.headers['X-CSRFToken'] = csrfToken();
+    }
+    return fetch(url, options);
+}
+
 const App = {
     init() {
         this.splashScreen();
@@ -134,7 +149,7 @@ const App = {
     // ==================== DASHBOARD ====================
     async loadDashboard() {
         try {
-            const res = await fetch('/api/dashboard/stats');
+            const res = await apiFetch('/api/dashboard/stats');
             const data = await res.json();
             document.getElementById('total-students').textContent = data.total_students;
             document.getElementById('present-today').textContent = data.present_today;
@@ -157,7 +172,7 @@ const App = {
                 `).join('');
             }
 
-            const trendRes = await fetch('/api/dashboard/weekly-trend');
+            const trendRes = await apiFetch('/api/dashboard/weekly-trend');
             const trend = await trendRes.json();
             if (document.getElementById('weeklyChart')) {
                 const s = getComputedStyle(document.documentElement);
@@ -209,7 +224,7 @@ const App = {
             status.textContent = 'Initializing camera...';
 
             try {
-                const res = await fetch('/recognition/capture', {
+                const res = await apiFetch('/recognition/capture', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ student_id: sid, name })
@@ -240,7 +255,7 @@ const App = {
                 email: form.email.value.trim(),
                 phone: form.phone.value.trim(),
             };
-            const res = await fetch('/students/api/add', {
+            const res = await apiFetch('/students/api/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
@@ -265,7 +280,7 @@ const App = {
 
         const fetchStudents = async (p) => {
             const q = search ? search.value.trim() : '';
-            const res = await fetch(`/students/api/list?page=${p}&per_page=10&search=${encodeURIComponent(q)}`);
+            const res = await apiFetch(`/students/api/list?page=${p}&per_page=10&search=${encodeURIComponent(q)}`);
             const data = await res.json();
 
             tbody.innerHTML = data.students.map(s => `
@@ -305,7 +320,7 @@ const App = {
     },
 
     async editStudent(id) {
-        const res = await fetch(`/students/api/get/${id}`);
+        const res = await apiFetch(`/students/api/get/${id}`);
         const data = await res.json();
         if (!data.success) return;
 
@@ -323,7 +338,7 @@ const App = {
 
     async deleteStudent(id) {
         if (!confirm('Are you sure you want to delete this student?')) return;
-        const res = await fetch(`/students/api/delete/${id}`, { method: 'DELETE' });
+        const res = await apiFetch(`/students/api/delete/${id}`, { method: 'DELETE' });
         const data = await res.json();
         if (data.success) {
             this.toast(data.message, 'success');
@@ -339,7 +354,7 @@ const App = {
         if (!tbody) return;
         const countEl = document.getElementById('today-count');
         const dateEl = document.getElementById('today-date');
-        fetch('/attendance/api/today')
+        apiFetch('/attendance/api/today')
             .then(r => r.json())
             .then(data => {
                 tbody.innerHTML = data.records.map(r => `
@@ -377,7 +392,7 @@ const App = {
                 from: dateFrom ? dateFrom.value : '',
                 to: dateTo ? dateTo.value : '',
             });
-            const res = await fetch(`/attendance/api/history?${params}`);
+            const res = await apiFetch(`/attendance/api/history?${params}`);
             const data = await res.json();
 
             tbody.innerHTML = data.records.map(r => `
@@ -434,7 +449,7 @@ const App = {
             startBtn.disabled = true;
             startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
             try {
-                const res = await fetch('/recognition/start', { method: 'POST' });
+                const res = await apiFetch('/recognition/start', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
                     recognitionActive = true;
@@ -449,7 +464,7 @@ const App = {
                     setInterval(async () => {
                         if (!recognitionActive) return;
                         try {
-                            const r = await fetch('/recognition/recognized');
+                            const r = await apiFetch('/recognition/recognized');
                             const faces = await r.json();
                             const list = document.getElementById('recognized-list');
                             if (list) {
@@ -486,7 +501,7 @@ const App = {
 
         stopBtn.addEventListener('click', async () => {
             clearInterval(frameInterval);
-            await fetch('/recognition/stop', { method: 'POST' });
+            await apiFetch('/recognition/stop', { method: 'POST' });
             recognitionActive = false;
             stopBtn.style.display = 'none';
             startBtn.style.display = 'inline-flex';
@@ -512,7 +527,7 @@ const App = {
                 date: dateInput.value,
                 department: deptSelect.value,
             });
-            const res = await fetch(`/reports/api/data?${params}`);
+            const res = await apiFetch(`/reports/api/data?${params}`);
             const data = await res.json();
 
             tbody.innerHTML = data.records.map(r => `
@@ -568,7 +583,7 @@ const App = {
     // ==================== ANALYTICS ====================
     async initAnalytics() {
         try {
-            const overview = await fetch('/analytics/api/overview').then(r => r.json());
+            const overview = await apiFetch('/analytics/api/overview').then(r => r.json());
             document.getElementById('analytics-total').textContent = overview.total_students;
             document.getElementById('analytics-today').textContent = overview.today_attendance;
             document.getElementById('analytics-accuracy').textContent = overview.avg_confidence + '%';
@@ -576,10 +591,10 @@ const App = {
             document.getElementById('analytics-monthly').textContent = overview.monthly_count;
 
             const [monthly, deptData, daily, accuracy] = await Promise.all([
-                fetch('/analytics/api/monthly-trend').then(r => r.json()),
-                fetch('/analytics/api/department-stats').then(r => r.json()),
-                fetch('/analytics/api/daily-trend').then(r => r.json()),
-                fetch('/analytics/api/accuracy-trend').then(r => r.json()),
+                apiFetch('/analytics/api/monthly-trend').then(r => r.json()),
+                apiFetch('/analytics/api/department-stats').then(r => r.json()),
+                apiFetch('/analytics/api/daily-trend').then(r => r.json()),
+                apiFetch('/analytics/api/accuracy-trend').then(r => r.json()),
             ]);
 
             this.createChart('monthlyChart', 'bar', {
@@ -655,7 +670,7 @@ const App = {
     // ==================== SETTINGS ====================
     async loadSettings() {
         try {
-            const res = await fetch('/settings/api/info');
+            const res = await apiFetch('/settings/api/info');
             const data = await res.json();
             document.getElementById('app-version').textContent = data.app_version;
             document.getElementById('app-name').textContent = data.app_name;
@@ -691,7 +706,7 @@ const App = {
         status.textContent = 'Initializing training...';
 
         try {
-            const res = await fetch('/recognition/train', { method: 'POST' });
+            const res = await apiFetch('/recognition/train', { method: 'POST' });
             const data = await res.json();
 
             if (data.success) {
@@ -711,7 +726,7 @@ const App = {
                     }
 
                     try {
-                        const trainRes = await fetch('/recognition/training-status');
+                        const trainRes = await apiFetch('/recognition/training-status');
                         const trainData = await trainRes.json();
                         const prog = trainData.training_progress || 0;
 
@@ -779,7 +794,7 @@ document.addEventListener('submit', async (e) => {
             email: form.email.value.trim(),
             phone: form.phone.value.trim(),
         };
-        const res = await fetch('/students/api/update', {
+        const res = await apiFetch('/students/api/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),

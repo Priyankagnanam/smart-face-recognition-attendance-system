@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from config import Config
 from recognition.trainer import FaceTrainer
+from recognition.cascades import load_face_cascade
 from models.database import db
 from models.student import Student
 from models.attendance import Attendance
@@ -23,9 +24,11 @@ class FaceRecognizer:
         self.model_loaded = False
         self.is_running = False
         self.cap = None
-        self.face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        )
+        try:
+            self.face_cascade = load_face_cascade()
+        except (FileNotFoundError, RuntimeError) as e:
+            logger.error('Face cascade unavailable: %s', e)
+            self.face_cascade = None
         self.current_frame = None
         self.recognized_faces = []
         self._lock = threading.Lock()
@@ -65,6 +68,10 @@ class FaceRecognizer:
         """Start the real-time face recognition loop.
         Camera starts regardless of model; recognition only when model is loaded.
         """
+        if self.face_cascade is None:
+            logger.error('Face cascade unavailable - cannot start recognition')
+            return False
+
         if not self.load_model():
             logger.warning('No trained model available - camera will start without recognition')
 

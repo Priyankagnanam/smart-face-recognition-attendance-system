@@ -1,12 +1,12 @@
 # Smart Face Recognition Attendance System
 
-An AI-powered attendance management system that automatically recognizes students using facial recognition technology and marks attendance securely. Built with Flask, OpenCV, InsightFace, and modern web technologies.
+An AI-powered attendance management system that automatically recognizes students using facial recognition technology and marks attendance securely. Built with Flask, OpenCV (LBPH), and modern web technologies.
 
 ---
 
 ## Features
 
-- **Face Recognition** - Real-time face detection and recognition using InsightFace
+- **Face Recognition** - Real-time face detection and recognition using OpenCV LBPH + Haar cascades
 - **Automated Attendance** - Mark attendance automatically when faces are recognized
 - **Student Management** - Register, update, and manage student records
 - **Live Camera Feed** - Real-time video stream with face detection overlay
@@ -25,7 +25,7 @@ An AI-powered attendance management system that automatically recognizes student
 |-------|-----------|
 | Backend | Python 3.12+, Flask |
 | Database | SQLite, SQLAlchemy ORM |
-| Face Recognition | InsightFace, OpenCV |
+| Face Recognition | OpenCV LBPH + Haar cascades |
 | Frontend | HTML5, CSS3, Bootstrap 5, JavaScript |
 | Charts | Chart.js |
 | Icons | Font Awesome |
@@ -114,11 +114,16 @@ http://127.0.0.1:5000
 
 ---
 
-## Default Login Credentials
+## Initial Admin Login
 
-| Username | Password | Role |
-|----------|----------|------|
-| admin | admin123 | Admin |
+The first time the application starts, an admin account is created from the
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` environment variables (see `.env.example`).
+
+- If `ADMIN_PASSWORD` is **set**: the admin account uses that password.
+- If `ADMIN_PASSWORD` is **not set**: a strong random password is generated and
+  printed once to the application log/console. Change it after your first login.
+
+There is **no** fixed default password.
 
 ---
 
@@ -201,7 +206,7 @@ http://127.0.0.1:5000
 | Issue | Fix |
 |-------|-----|
 | Broken `fa-analytics` icon in sidebar | Changed to `fa-chart-pie` |
-| Hardcoded secret key fallback | Changed to `os.urandom(32).hex()` |
+| Hardcoded secret key fallback | Changed to env-based SECRET_KEY with persistent dev fallback (no hard-coded secret) |
 | Missing `.gitkeep` in empty directories | Added `.gitkeep` to dataset, trained_models, exports, logs, uploads |
 | No `.env.example` for env configuration | Created `.env.example` with instructions |
 | Duplicate event listeners in attendance history | Fixed: `input` event only on search, `change` on filters |

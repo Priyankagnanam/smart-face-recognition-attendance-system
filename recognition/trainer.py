@@ -1,11 +1,11 @@
 import os
 import pickle
 import logging
-import numpy as np
 import cv2
 from config import Config
 from models.database import db
 from models.student import Student
+from recognition.cascades import load_face_cascade
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +15,17 @@ class FaceTrainer:
 
     def __init__(self):
         self.model_path = os.path.join(Config.TRAINED_MODELS_DIR, 'face_encodings.pkl')
-        self.face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        )
+        try:
+            self.face_cascade = load_face_cascade()
+        except (FileNotFoundError, RuntimeError) as e:
+            logger.error('Face cascade unavailable: %s', e)
+            self.face_cascade = None
 
     def extract_face(self, image_path: str):
         """Detect and extract face from an image, return grayscale face ROI."""
+        if self.face_cascade is None:
+            logger.error('Face cascade not loaded - cannot extract faces')
+            return None
         img = cv2.imread(image_path)
         if img is None:
             return None

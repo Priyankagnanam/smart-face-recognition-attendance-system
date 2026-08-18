@@ -12,24 +12,33 @@ venv/
 env/
 .venv/
 
-# Database
+# Database (SQLite)
 database/attendance.db
 database/attendance.db-journal
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite3
 
-# Datasets
+# Datasets (student face images - NEVER commit biometric data)
 dataset/*
+!dataset/.gitkeep
 
-# Trained Models
+# Trained Models (contain face encodings - NEVER commit)
 trained_models/*
+!trained_models/.gitkeep
 
 # Exports
 exports/*
+!exports/.gitkeep
 
 # Logs
 logs/*.log
+!logs/.gitkeep
 
 # Uploads
 static/uploads/*
+!static/uploads/.gitkeep
 
 # IDE
 .vscode/
@@ -42,9 +51,14 @@ static/uploads/*
 .DS_Store
 Thumbs.db
 
-# Environment
+# Environment (NEVER commit secrets)
 .env
 *.env
+!*.env.example
 
-# Flask
+# Flask instance (contains generated secret keys)
 instance/
+
+# Temporary files
+*.tmp
+*.log

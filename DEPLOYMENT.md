@@ -24,15 +24,17 @@ source venv/bin/activate    # Linux/Mac
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Set environment variables (optional)
-export SECRET_KEY="your-super-secret-key"
+# 4. Set environment variables
+export SECRET_KEY="your-super-secret-key"          # REQUIRED in production
+export ADMIN_USERNAME="admin"                      # initial admin (optional)
+export ADMIN_PASSWORD="a-strong-password"          # initial admin password (optional; random if unset)
 
 # 5. Run the application
 python app.py
 
 # 6. Access the application
 # Open browser to: http://127.0.0.1:5000
-# Default login: admin / admin123
+# Login using the admin credentials configured above (or the generated password from the log).
 ```
 
 ---
@@ -59,6 +61,8 @@ After=network.target
 User=www-data
 WorkingDirectory=/opt/SmartFaceRecognitionAttendance
 Environment="SECRET_KEY=your-production-secret-key"
+Environment="ADMIN_USERNAME=admin"
+Environment="ADMIN_PASSWORD=your-strong-password"
 ExecStart=/opt/SmartFaceRecognitionAttendance/venv/bin/gunicorn -w 4 -b 127.0.0.1:8000 app:app
 Restart=always
 

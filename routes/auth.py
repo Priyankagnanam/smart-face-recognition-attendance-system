@@ -1,14 +1,19 @@
 import logging
+import os
+import secrets
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
+from sqlalchemy.exc import IntegrityError
 from models.database import db
 from models.user import User
+from utils.security import limiter
 
 logger = logging.getLogger(__name__)
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit('10 per minute', methods=['POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.index'))
@@ -51,14 +56,47 @@ def check_session():
 
 
 def create_default_admin():
-    """Create default admin user if none exists."""
-    admin = User.query.filter_by(username='admin').first()
-    if not admin:
-        admin = User(
-            username='admin',
-            role='admin'
-        )
-        admin.set_password('admin123')
-        db.session.add(admin)
+    """Create the initial admin user if none exists.
+
+    Credentials are read from environment variables:
+      ADMIN_USERNAME (default: admin)
+      ADMIN_PASSWORD
+
+    If ADMIN_PASSWORD is not set, a strong random password is generated and
+    printed once to the log/console. There is no fixed default password.
+    """
+    username = os.environ.get('ADMIN_USERNAME', 'admin').strip() or 'admin'
+    admin = User.query.filter_by(username=username).first()
+    if admin:
+        return
+
+    password = os.environ.get('ADMIN_PASSWORD')
+    generated = False
+    if not password:
+        password = secrets.token_urlsafe(12)
+        generated = True
+
+    admin = User(
+        username=username,
+        role='admin'
+    )
+    admin.set_password(password)
+    db.session.add(admin)
+    try:
         db.session.commit()
-        logger.info('Default admin user created (admin/admin123)')
+    except IntegrityError:
+        # Multiple gunicorn workers boot simultaneously; another worker
+        # already created the admin user. That is fine - roll back and continue.
+        db.session.rollback()
+        logger.info('Admin user "%s" already created by another worker.', username)
+        return
+
+    if generated:
+        logger.warning(
+            'No ADMIN_PASSWORD environment variable set. '
+            'Created admin user "%s" with a generated password: %s  '
+            '(change it after first login and set ADMIN_PASSWORD for future installs).',
+            username, password,
+        )
+    else:
+        logger.info('Admin user "%s" created from environment configuration.', username)

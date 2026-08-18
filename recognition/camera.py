@@ -3,7 +3,9 @@ import os
 import time
 import threading
 import logging
+import numpy as np
 from config import Config
+from recognition.cascades import load_face_cascade
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +63,10 @@ class CameraManager:
         student_dir = os.path.join(Config.DATASET_DIR, student_id)
         os.makedirs(student_dir, exist_ok=True)
 
-        face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        )
-        if face_cascade.empty():
-            logger.error('Failed to load face cascade classifier')
+        try:
+            face_cascade = load_face_cascade()
+        except (FileNotFoundError, RuntimeError) as e:
+            logger.error('Face cascade unavailable: %s', e)
             return []
 
         if not self.open_camera():
@@ -73,8 +74,9 @@ class CameraManager:
 
         captured = 0
         captured_files = []
+        last_saved_gray = None
         start_time = time.time()
-        max_duration = 8
+        max_duration = 20
 
         while captured < num_images:
             if time.time() - start_time > max_duration:
@@ -96,11 +98,22 @@ class CameraManager:
                 face_img = frame[y:y + h, x:x + w]
                 face_img = cv2.resize(face_img, Config.TRAINING_IMAGE_SIZE)
 
+                # Skip near-duplicate frames so training data is diverse.
+                face_gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+                if last_saved_gray is not None:
+                    diff = cv2.absdiff(face_gray, last_saved_gray)
+                    mean_diff = float(np.mean(diff))
+                    if mean_diff < 6.0:
+                        time.sleep(0.1)
+                        continue
+                last_saved_gray = face_gray
+
                 filename = f'{student_id}_{captured:03d}.jpg'
                 filepath = os.path.join(student_dir, filename)
                 cv2.imwrite(filepath, face_img)
                 captured_files.append(filepath)
                 captured += 1
+                time.sleep(0.12)
 
         self.release_camera()
 

@@ -161,6 +161,21 @@ def format_records(records):
     return result
 
 
+def export_columns(records, report_type):
+    """Return (headers, rows) for CSV/Excel export, normalizing the department
+    report (which has total_attendance instead of per-day fields)."""
+    if report_type == 'department':
+        headers = ['Student ID', 'Name', 'Department', 'Year', 'Section', 'Total Attendance']
+        rows = [[r['student_id'], r['name'], r['department'], r['year'], r['section'],
+                 r['total_attendance']] for r in records]
+        return headers, rows
+
+    headers = ['Student ID', 'Name', 'Department', 'Year', 'Section', 'Date', 'Time', 'Status', 'Confidence (%)']
+    rows = [[r['student_id'], r['name'], r['department'], r['year'], r['section'],
+             r['date'], r['time'], r['status'], r['confidence']] for r in records]
+    return headers, rows
+
+
 @reports_bp.route('/api/export/csv')
 @login_required
 def export_csv():
@@ -180,6 +195,14 @@ def export_csv():
             except ValueError:
                 pass
         records = get_attendance_for_date(query_date, department)
+    elif report_type == 'weekly':
+        end_date = today
+        if date_str:
+            try:
+                end_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        records = get_attendance_for_range(end_date - timedelta(days=6), end_date, department)
     elif report_type == 'monthly':
         year, month = today.year, today.month
         if date_str:
@@ -189,12 +212,15 @@ def export_csv():
             except ValueError:
                 pass
         records = get_attendance_for_month(year, month, department)
+    elif report_type == 'department':
+        records = get_department_report(department)
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Student ID', 'Name', 'Department', 'Year', 'Section', 'Date', 'Time', 'Status', 'Confidence (%)'])
-    for r in records:
-        writer.writerow([r['student_id'], r['name'], r['department'], r['year'], r['section'], r['date'], r['time'], r['status'], r['confidence']])
+    headers, rows = export_columns(records, report_type)
+    writer.writerow(headers)
+    for row in rows:
+        writer.writerow(row)
 
     output.seek(0)
     return Response(
@@ -223,6 +249,14 @@ def export_excel():
             except ValueError:
                 pass
         records = get_attendance_for_date(query_date, department)
+    elif report_type == 'weekly':
+        end_date = today
+        if date_str:
+            try:
+                end_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        records = get_attendance_for_range(end_date - timedelta(days=6), end_date, department)
     elif report_type == 'monthly':
         year, month = today.year, today.month
         if date_str:
@@ -232,6 +266,8 @@ def export_excel():
             except ValueError:
                 pass
         records = get_attendance_for_month(year, month, department)
+    elif report_type == 'department':
+        records = get_department_report(department)
 
     wb = Workbook()
     ws = wb.active
@@ -247,7 +283,7 @@ def export_excel():
         bottom=Side(style='thin'),
     )
 
-    headers = ['Student ID', 'Name', 'Department', 'Year', 'Section', 'Date', 'Time', 'Status', 'Confidence (%)']
+    headers, rows = export_columns(records, report_type)
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.font = header_font
@@ -255,9 +291,8 @@ def export_excel():
         cell.alignment = header_alignment
         cell.border = thin_border
 
-    for row_idx, r in enumerate(records, 2):
-        values = [r['student_id'], r['name'], r['department'], r['year'], r['section'], r['date'], r['time'], r['status'], r['confidence']]
-        for col_idx, val in enumerate(values, 1):
+    for row_idx, row in enumerate(rows, 2):
+        for col_idx, val in enumerate(row, 1):
             cell = ws.cell(row=row_idx, column=col_idx, value=val)
             cell.border = thin_border
             cell.alignment = Alignment(horizontal='center')

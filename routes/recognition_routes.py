@@ -7,6 +7,7 @@ from config import Config
 from recognition.camera import CameraManager
 from recognition.trainer import FaceTrainer
 from recognition.recognizer import FaceRecognizer
+from recognition.cascades import FACE_CASCADE_PATH
 from models.database import db
 from models.student import Student
 
@@ -39,6 +40,13 @@ def capture_faces():
 
     if not student_id or not name:
         return jsonify({'success': False, 'message': 'Student ID and name required.'}), 400
+
+    if not os.path.exists(FACE_CASCADE_PATH):
+        logger.error('Face cascade file missing at %s', FACE_CASCADE_PATH)
+        return jsonify({
+            'success': False,
+            'message': 'Face detection is not configured (cascade file missing). Contact the administrator.'
+        }), 500
 
     student_dir = os.path.join(Config.DATASET_DIR, student_id)
     os.makedirs(student_dir, exist_ok=True)
@@ -144,6 +152,11 @@ def training_status():
 def start_recognition():
     if face_recognizer is None:
         return jsonify({'success': False, 'message': 'Recognizer not initialized.'}), 500
+    if face_recognizer.face_cascade is None:
+        return jsonify({
+            'success': False,
+            'message': 'Face detection is not configured (cascade file missing). Contact the administrator.'
+        }), 500
     success = face_recognizer.start_recognition()
     if success:
         return jsonify({'success': True, 'message': 'Recognition started.'})
