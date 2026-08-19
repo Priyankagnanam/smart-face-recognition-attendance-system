@@ -90,11 +90,11 @@ def seed_demo_data():
     db.session.commit()
     logger.info('Added %d sample students', len(SAMPLE_STUDENTS))
 
-    # Generate attendance for the last 14 days
+    # Generate attendance for the last 30 days INCLUDING today
     today = date.today()
     attendance_count = 0
 
-    for day_offset in range(14, 0, -1):
+    for day_offset in range(30, -1, -1):
         att_date = today - timedelta(days=day_offset)
 
         # Skip weekends
