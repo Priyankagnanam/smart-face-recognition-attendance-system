@@ -27,7 +27,7 @@ timeout = 120
 graceful_timeout = 30
 
 # Access + error logging.
-accesslog = "logs/gunicorn-access.log"
-errorlog = "logs/gunicorn-error.log"
+accesslog = "-"
+errorlog = "-"
 loglevel = "info"
 capture_output = True
