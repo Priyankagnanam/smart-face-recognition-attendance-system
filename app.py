@@ -74,6 +74,8 @@ def create_app() -> Flask:
 
     with app.app_context():
         create_default_admin()
+        from seed_data import seed_demo_data
+        seed_demo_data()
 
     @app.context_processor
     def inject_now():
