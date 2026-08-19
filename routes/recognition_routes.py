@@ -8,8 +8,7 @@ from recognition.camera import CameraManager
 from recognition.trainer import FaceTrainer
 from recognition.recognizer import FaceRecognizer
 from recognition.cascades import FACE_CASCADE_PATH
-from models.database import db
-from models.student import Student
+from utils.helpers import is_valid_student_id
 
 logger = logging.getLogger(__name__)
 recognition_bp = Blueprint('recognition', __name__, url_prefix='/recognition')
@@ -41,6 +40,12 @@ def capture_faces():
     if not student_id or not name:
         return jsonify({'success': False, 'message': 'Student ID and name required.'}), 400
 
+    if not is_valid_student_id(student_id):
+        return jsonify({
+            'success': False,
+            'message': 'Student ID may only contain letters, digits, dashes and underscores.'
+        }), 400
+
     if not os.path.exists(FACE_CASCADE_PATH):
         logger.error('Face cascade file missing at %s', FACE_CASCADE_PATH)
         return jsonify({
@@ -50,6 +55,11 @@ def capture_faces():
 
     student_dir = os.path.join(Config.DATASET_DIR, student_id)
     os.makedirs(student_dir, exist_ok=True)
+
+    # Ensure the live-recognition loop is stopped so the webcam is free for capture.
+    if face_recognizer is not None and face_recognizer.is_running:
+        logger.info('Stopping active recognition before face capture')
+        face_recognizer.stop_recognition()
 
     camera = CameraManager()
     try:
@@ -64,7 +74,10 @@ def capture_faces():
                 'message': f'Successfully captured {len(captured_files)} face images. Model auto-training started.',
             })
         else:
-            return jsonify({'success': False, 'message': 'No faces detected or capture failed.'}), 400
+            return jsonify({
+                'success': False,
+                'message': 'No faces detected or the camera could not be opened. Stop live attendance if it is running, make sure the webcam is free, and try again.'
+            }), 400
     except Exception as e:
         logger.error(f'Face capture error: {e}')
         return jsonify({'success': False, 'message': f'Camera error: {str(e)}'}), 500
@@ -89,6 +102,8 @@ def _auto_train_async():
                     training_progress_current = progress
                 count, total = trainer.train_model(progress_callback=cb)
                 training_progress_current = 100
+                if face_recognizer is not None:
+                    face_recognizer.reload_model()
                 logger.info(f'Auto-training complete: {count}/{total} students')
             except Exception as e:
                 logger.error(f'Auto-training error: {e}')
@@ -122,6 +137,8 @@ def train_model():
                 count, total = trainer.train_model(progress_callback=progress_callback)
                 training_progress_current = 100
                 training_total_students = total
+                if face_recognizer is not None:
+                    face_recognizer.reload_model()
                 logger.info(f'Training complete: {count}/{total} students')
             except Exception as e:
                 logger.error(f'Training error: {e}')
@@ -187,6 +204,5 @@ def video_feed():
 @login_required
 def recognized_faces():
     if face_recognizer is None:
-        return jsonify([])
-    faces = face_recognizer.get_recognized_faces()
-    return jsonify(faces)
+        return jsonify({'running': False, 'faces_detected': False, 'recognized': []})
+    return jsonify(face_recognizer.get_recognition_status())

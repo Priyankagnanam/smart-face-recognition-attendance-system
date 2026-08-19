@@ -3,9 +3,8 @@ import pickle
 import logging
 import cv2
 from config import Config
-from models.database import db
-from models.student import Student
 from recognition.cascades import load_face_cascade
+from recognition.preprocess import preprocess_face_crop
 
 logger = logging.getLogger(__name__)
 
@@ -22,23 +21,24 @@ class FaceTrainer:
             self.face_cascade = None
 
     def extract_face(self, image_path: str):
-        """Detect and extract face from an image, return grayscale face ROI."""
-        if self.face_cascade is None:
-            logger.error('Face cascade not loaded - cannot extract faces')
-            return None
+        """Load a saved face crop and normalize it for training.
+
+        Saved dataset images are already tight face crops produced by capture,
+        so we do NOT re-run Haar detection on them. Re-detecting inside an
+        already-cropped face is unreliable (it often finds a different, smaller
+        sub-region or nothing at all) and would make the training samples
+        structurally different from the live camera crops. Instead we apply the
+        SAME preprocessing used by live recognition (grayscale -> resize to
+        100x100 -> optional CLAHE), so training and live inputs match.
+        """
         img = cv2.imread(image_path)
         if img is None:
             return None
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(
-            gray, scaleFactor=1.1, minNeighbors=5, minSize=(80, 80)
-        )
-        if len(faces) == 0:
-            return None
-        (x, y, w, h) = faces[0]
-        face_roi = gray[y:y + h, x:x + w]
-        face_roi = cv2.resize(face_roi, (100, 100))
-        return face_roi
+        if img.ndim == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img
+        return preprocess_face_crop(gray)
 
     def extract_embeddings_batch(self, student_id: str):
         """Extract face images for a student from dataset folder."""
@@ -64,12 +64,25 @@ class FaceTrainer:
         logger.info(f'Extracted {len(faces)} face images for {student_id}')
         return faces
 
+    @staticmethod
+    def _dir_has_images(dir_path: str) -> bool:
+        return any(
+            f.lower().endswith(('.jpg', '.jpeg', '.png'))
+            for f in os.listdir(dir_path)
+        )
+
     def train_model(self, progress_callback=None):
-        """Train the LBPH face recognizer on all students in the dataset."""
+        """Train the LBPH face recognizer on ALL students in the dataset.
+
+        Training ALWAYS rebuilds the model from the current dataset directory,
+        so the persisted model can never go stale while images exist on disk.
+        Empty directories are ignored (they contain no face samples).
+        """
         all_faces = {}
         student_dirs = [
             d for d in os.listdir(Config.DATASET_DIR)
             if os.path.isdir(os.path.join(Config.DATASET_DIR, d))
+            and self._dir_has_images(os.path.join(Config.DATASET_DIR, d))
         ]
 
         total = len(student_dirs)
@@ -113,6 +126,7 @@ class FaceTrainer:
         student_dirs = [
             d for d in os.listdir(Config.DATASET_DIR)
             if os.path.isdir(os.path.join(Config.DATASET_DIR, d))
+            and self._dir_has_images(os.path.join(Config.DATASET_DIR, d))
         ]
 
         total_images = 0

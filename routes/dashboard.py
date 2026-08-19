@@ -2,8 +2,6 @@ import logging
 from datetime import datetime, date, timedelta
 from flask import Blueprint, render_template, jsonify
 from flask_login import login_required
-from sqlalchemy import func
-from models.database import db
 from models.student import Student
 from models.attendance import Attendance
 import numpy as np

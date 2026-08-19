@@ -4,7 +4,6 @@ import io
 from datetime import datetime, date, timedelta
 from flask import Blueprint, render_template, request, jsonify, send_file, Response
 from flask_login import login_required
-from models.database import db
 from models.student import Student
 from models.attendance import Attendance
 from openpyxl import Workbook

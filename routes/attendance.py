@@ -1,6 +1,6 @@
 import logging
-from datetime import datetime, date, time
-from flask import Blueprint, render_template, request, jsonify, Response
+from datetime import datetime, date
+from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
 from models.database import db
 from models.student import Student

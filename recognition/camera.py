@@ -98,8 +98,11 @@ class CameraManager:
                 face_img = frame[y:y + h, x:x + w]
                 face_img = cv2.resize(face_img, Config.TRAINING_IMAGE_SIZE)
 
-                # Skip near-duplicate frames so training data is diverse.
+                # Save the grayscale crop so training and live recognition use
+                # the exact same single-channel representation.
                 face_gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+
+                # Skip near-duplicate frames so training data is diverse.
                 if last_saved_gray is not None:
                     diff = cv2.absdiff(face_gray, last_saved_gray)
                     mean_diff = float(np.mean(diff))
@@ -110,7 +113,7 @@ class CameraManager:
 
                 filename = f'{student_id}_{captured:03d}.jpg'
                 filepath = os.path.join(student_dir, filename)
-                cv2.imwrite(filepath, face_img)
+                cv2.imwrite(filepath, face_gray)
                 captured_files.append(filepath)
                 captured += 1
                 time.sleep(0.12)

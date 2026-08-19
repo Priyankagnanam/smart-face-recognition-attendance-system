@@ -40,13 +40,29 @@ SmartFaceRecognitionAttendance/
 ├── app.py                          # Application entry point
 ├── config.py                       # Configuration settings
 ├── requirements.txt                # Python dependencies
-├── database/                       # SQLite database files
+├── .env.example                    # Environment variable template
+├── .gitignore                      # Git ignore rules
+├── TEST_REPORT.md                  # Test results
+├── DEPLOYMENT.md                   # Deployment guide
+├── database/                       # SQLite database
+│   ├── attendance.db
+│   └── .gitkeep
 ├── models/                         # SQLAlchemy ORM models
+│   ├── __init__.py
 │   ├── database.py                 # Database initialization
 │   ├── user.py                     # User model
 │   ├── student.py                  # Student model
-│   └── attendance.py              # Attendance model
+│   ├── attendance.py              # Attendance model
+│   └── face_encoding              # Legacy column (unused)
+├── recognition/                    # Face recognition modules
+│   ├── __init__.py
+│   ├── camera.py                   # Camera management
+│   ├── trainer.py                  # Model training
+│   ├── recognizer.py              # Real-time recognition
+│   ├── preprocess.py               # Face preprocessing (shared by training & live)
+│   └── cascades.py                 # Haar cascade file location
 ├── routes/                         # Flask blueprints (routes)
+│   ├── __init__.py
 │   ├── auth.py                     # Authentication routes
 │   ├── dashboard.py                # Dashboard routes
 │   ├── student.py                  # Student management routes
@@ -55,17 +71,38 @@ SmartFaceRecognitionAttendance/
 │   ├── analytics.py                # Analytics routes
 │   ├── settings.py                 # Settings routes
 │   └── recognition_routes.py       # Recognition API endpoints
-├── recognition/                    # Face recognition modules
-│   ├── camera.py                   # Camera management
-│   ├── trainer.py                  # Model training
-│   └── recognizer.py              # Real-time recognition
 ├── templates/                      # HTML templates
-├── static/                         # Static assets (CSS, JS)
+│   ├── base.html
+│   ├── login.html
+│   ├── dashboard.html
+│   ├── students.html
+│   ├── register_student.html
+│   ├── attendance.html
+│   ├── live_attendance.html
+│   ├── attendance_history.html
+│   ├── reports.html
+│   ├── analytics.html
+│   ├── settings.html
+│   ├── 404.html
+│   └── 500.html
+├── static/                         # Static assets
+│   ├── css/style.css
+│   ├── js/app.js
+│   ├── icons/
+│   └── images/
 ├── dataset/                        # Student face images
+│   └── .gitkeep
 ├── trained_models/                 # Trained face encodings
+│   └── .gitkeep
 ├── exports/                        # Exported reports
+│   └── .gitkeep
 ├── logs/                           # Application logs
-└── utils/                          # Utility functions
+│   └── .gitkeep
+├── utils/                          # Utility functions
+│   ├── __init__.py
+│   ├── helpers.py                  # File validation & confidence formatting
+│   └── security.py                 # Rate limiter & student-id validation
+└── gunicorn.conf.py                # Gunicorn production configuration
 ```
 
 ---
@@ -132,8 +169,8 @@ There is **no** fixed default password.
 ### 1. Register Students
 - Navigate to **Register Student**
 - Fill in student details
-- Click **Capture Face** to capture 40 face images
 - Click **Save Student**
+- Click **Capture Face** to capture 40 face images
 
 ### 2. Train Model
 - Go to **Settings**
@@ -201,7 +238,7 @@ There is **no** fixed default password.
 
 ---
 
-## Fixes Applied (v2.0.1)
+## Fixes Applied (v2.1.0)
 
 | Issue | Fix |
 |-------|-----|
@@ -215,9 +252,41 @@ There is **no** fixed default password.
 
 ## Deployment
 
+### LAN Deployment (Gunicorn, single worker)
+
+> **Webcam architecture:** recognition is server-side. The webcam must stay
+> physically connected to the computer running the Flask/Gunicorn application.
+> Other computers on the LAN only view the server-provided video feed.
+
+```bash
+# 1. INSTALL
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# 2. SET SECRET KEY (required for production)
+export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+
+# 3. RUN (binds 0.0.0.0:8000, logs to logs/)
+gunicorn -c gunicorn.conf.py app:app
+
+# 4. FIND SERVER IP
+ip addr
+
+# 5. ACCESS FROM LAN (on the server machine or another computer)
+#    Server machine:  http://0.0.0.0:8000
+#    Other computer:  http://SERVER_LAN_IP:8000   (NOT 127.0.0.1)
+```
+
+Allow port 8000 through the firewall if needed: `sudo ufw allow 8000/tcp`.
+
+Local development still works as before with `python app.py`
+(`http://127.0.0.1:5000`).
+
 See [DEPLOYMENT.md](DEPLOYMENT.md) for:
-- Production setup with Gunicorn + Nginx
-- Systemd service configuration
+- Webcam architecture notes (server-side recognition, camera on the server)
+- Gunicorn + systemd service configuration
+- Nginx reverse proxy (optional, for HTTPS/domain)
 - Security checklist
 - Git push commands
 
@@ -225,7 +294,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for:
 
 ## Test Report
 
-See [TEST_REPORT.md](TEST_REPORT.md) for complete test results (52/52 tests passed).
+See [TEST_REPORT.md](TEST_REPORT.md) for complete test results (current suite).
 
 ---
 

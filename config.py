@@ -71,9 +71,17 @@ class Config:
 
     # Face recognition settings
     CONFIDENCE_THRESHOLD = 0.5
-    LBPH_CONFIDENCE_THRESHOLD = 80
+    # LBPH distance below which a prediction is accepted. Calibrated on the
+    # live model: genuine matches under realistic lighting/pose reach p90=88,
+    # p99=117 (measured with brightness/contrast/box augmentation over the
+    # actual dataset), while unknown/noise subjects sit at 145+. Temporal
+    # confirmation (RECOGNITION_CONSECUTIVE_FRAMES) guards false accepts.
+    LBPH_CONFIDENCE_THRESHOLD = 120
     REQUIRED_IMAGES_FOR_REGISTRATION = 40
     TRAINING_IMAGE_SIZE = (160, 160)
+    RECOGNITION_IMAGE_SIZE = (100, 100)
+    FACE_PREPROCESS_CLAHE = True
+    RECOGNITION_CONSECUTIVE_FRAMES = 3
 
     # Attendance settings
     DAILY_CHECK_IN_START = '06:00'

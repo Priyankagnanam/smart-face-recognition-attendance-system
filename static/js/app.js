@@ -208,44 +208,94 @@ const App = {
 
     // ==================== STUDENT REGISTRATION ====================
     initCameraCapture() {
+        const form = document.getElementById('student-form');
         const btn = document.getElementById('capture-face-btn');
         const status = document.getElementById('capture-status');
-        if (!btn) return;
+        const sidInput = document.getElementById('student_id');
+        const nameInput = document.getElementById('name');
+        if (!form || !btn || !status) return;
+
+        // Identity of the last student successfully saved via /students/api/add.
+        // Face capture is only allowed while the form matches this saved identity.
+        let saved = null;
+        // Capture success message shown in the status panel until the next save.
+        let lastCaptureNote = '';
+
+        const updateCaptureUI = () => {
+            const sid = sidInput ? sidInput.value.trim() : '';
+            const name = nameInput ? nameInput.value.trim() : '';
+            btn.innerHTML = '<i class="fas fa-camera"></i> Capture Face';
+            if (!saved) {
+                btn.disabled = true;
+                status.innerHTML = '<i class="fas fa-info-circle"></i> Save the student first to enable face capture.';
+            } else if (!sid && !name) {
+                btn.disabled = true;
+                status.innerHTML = lastCaptureNote || '<i class="fas fa-check-circle"></i> Student saved. Enter a new student to register, or re-enter the same ID and name to capture face images.';
+            } else if (sid !== saved.sid || name !== saved.name) {
+                btn.disabled = true;
+                status.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Student details changed. Save again to enable face capture.';
+            } else {
+                btn.disabled = false;
+                status.innerHTML = '<i class="fas fa-check-circle"></i> Student saved. Ready to capture face images.';
+            }
+        };
+
+        updateCaptureUI();
+        if (sidInput) sidInput.addEventListener('input', updateCaptureUI);
+        if (nameInput) nameInput.addEventListener('input', updateCaptureUI);
+        form.addEventListener('reset', updateCaptureUI);
 
         btn.addEventListener('click', async () => {
-            const sid = document.getElementById('student_id').value.trim();
-            const name = document.getElementById('name').value.trim();
-            if (!sid || !name) {
-                this.toast('Please fill Student ID and Name first.', 'warning');
+            if (!saved) {
+                this.toast('Please save the student before capturing face images.', 'warning');
+                updateCaptureUI();
                 return;
             }
+            const sid = sidInput ? sidInput.value.trim() : '';
+            const name = nameInput ? nameInput.value.trim() : '';
+            if (sid !== saved.sid || name !== saved.name) {
+                this.toast('Student details changed. Please save again before capturing.', 'warning');
+                updateCaptureUI();
+                return;
+            }
+
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Capturing...';
-            status.textContent = 'Initializing camera...';
+            status.innerHTML = '<i class="fas fa-camera"></i> Initializing camera...';
 
             try {
                 const res = await apiFetch('/recognition/capture', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ student_id: sid, name })
+                    body: JSON.stringify({ student_id: saved.sid, name: saved.name })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    this.toast(`Captured ${data.count} images!`, 'success');
-                    status.textContent = data.message;
+                    let trainingNote = '';
+                    try {
+                        const tRes = await apiFetch('/recognition/training-status');
+                        const tData = await tRes.json();
+                        if (tData && typeof tData.total_images === 'number') {
+                            trainingNote = ` Model auto-training is running (${tData.total_images} images in dataset).`;
+                        }
+                    } catch (e) { /* training status is informational only */ }
+                    lastCaptureNote = '<i class="fas fa-check-circle"></i> ' + data.message + trainingNote;
+                    status.innerHTML = lastCaptureNote;
+                    this.toast(`Captured ${data.count} images for ${saved.name}!`, 'success');
+                    form.reset();
                 } else {
                     this.toast(data.message, 'danger');
+                    status.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (data.message || 'Face capture failed.');
                 }
             } catch (e) {
                 this.toast('Camera capture failed.', 'danger');
+                status.innerHTML = '<i class="fas fa-exclamation-circle"></i> Camera capture failed.';
             }
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-camera"></i> Capture Face';
+            updateCaptureUI();
         });
 
-        document.getElementById('student-form').addEventListener('submit', async (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const form = e.target;
             const data = {
                 student_id: form.student_id.value.trim(),
                 name: form.name.value.trim(),
@@ -262,11 +312,14 @@ const App = {
             });
             const result = await res.json();
             if (result.success) {
-                this.toast(result.message, 'success');
-                form.reset();
+                saved = { sid: data.student_id, name: data.name };
+                const msgEl = document.getElementById('save-success-message');
+                if (msgEl) msgEl.textContent = result.message;
+                this.openModal('save-success-modal');
             } else {
                 this.toast(result.message, 'danger');
             }
+            updateCaptureUI();
         });
     },
 
@@ -440,51 +493,137 @@ const App = {
         const startBtn = document.getElementById('start-camera');
         const stopBtn = document.getElementById('stop-camera');
         const videoFeed = document.getElementById('video-feed');
+        const camStatusText = document.getElementById('cam-status-text');
+        const camStatusDot = document.getElementById('cam-status-dot');
         if (!startBtn || !videoFeed) return;
 
-        let recognitionActive = false;
+        // Clear camera state. The camera runs while cameraRunning === true and
+        // only stops via the Stop button or when the page is closed/unloaded.
+        let cameraRunning = false;
         let frameInterval = null;
+        let recognitionPoll = null;
+
+        // Temporary diagnostic logging for the camera lifecycle.
+        const camLog = (...args) => console.log('[CAMERA]', ...args);
+
+        const setStatus = (text, active) => {
+            if (camStatusText) camStatusText.textContent = text;
+            if (camStatusDot) {
+                camStatusDot.style.color = active ? 'var(--success)' : 'var(--danger)';
+            }
+        };
+
+        const emptyState = () => `
+            <div class="empty-state">
+                <i class="fas fa-user"></i>
+                <h3>No faces recognized yet</h3>
+                <p>Start the camera to begin face recognition</p>
+            </div>`;
+
+        // Renders the recognized-list panel purely from the backend status.
+        // faces: array of confirmed recognitions; facesDetected: face in frame.
+        const renderRecognized = (faces, facesDetected) => {
+            const list = document.getElementById('recognized-list');
+            if (!list) return;
+            if (faces && faces.length) {
+                list.innerHTML = faces.map(f => `
+                    <div class="stat-card fade-in">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;">${f.name.charAt(0)}</div>
+                            <div style="flex:1;">
+                                <div style="font-size:11px;color:var(--success);font-weight:600;">Face Recognized</div>
+                                <div style="font-weight:600;">${f.name}</div>
+                                <div style="font-size:12px;color:var(--text-muted);">Student ID: ${f.student_id}</div>
+                                <div style="font-size:12px;color:var(--success);">Status: Present &middot; ${(f.confidence * 100).toFixed(1)}% confidence${f.attendance_marked ? '<span style="background:var(--success);color:white;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px;">SAVED</span>' : ''}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else if (facesDetected) {
+                list.innerHTML = `
+                    <div class="stat-card fade-in">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#f59e0b,#ef4444);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;">?</div>
+                            <div style="flex:1;">
+                                <div style="font-size:11px;color:#f59e0b;font-weight:600;">Face Detected</div>
+                                <div style="font-weight:600;">Unknown</div>
+                                <div style="font-size:12px;color:var(--text-muted);">No matching student</div>
+                            </div>
+                        </div>
+                    </div>`;
+            } else {
+                list.innerHTML = emptyState();
+            }
+        };
+
+        const stopCamera = async () => {
+            if (!cameraRunning) return;
+            camLog('Stopping');
+            clearInterval(frameInterval);
+            frameInterval = null;
+            clearInterval(recognitionPoll);
+            recognitionPoll = null;
+            cameraRunning = false;
+            try {
+                await apiFetch('/recognition/stop', { method: 'POST' });
+            } catch (e) {}
+            stopBtn.style.display = 'none';
+            startBtn.style.display = 'inline-flex';
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i class="fas fa-play"></i> Start Camera';
+            videoFeed.src = '';
+            setStatus('Camera Stopped', false);
+            renderRecognized([], false);
+            this.toast('Recognition stopped.', 'info');
+        };
 
         startBtn.addEventListener('click', async () => {
             startBtn.disabled = true;
             startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
             try {
+                camLog('Starting');
                 const res = await apiFetch('/recognition/start', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    recognitionActive = true;
+                    cameraRunning = true;
+                    camLog('Stream active');
                     startBtn.style.display = 'none';
                     stopBtn.style.display = 'inline-flex';
+                    setStatus('Face Recognition Active', true);
                     this.toast('Recognition started!', 'success');
 
+                    // Frame-processing loop: keeps requesting the MJPEG feed
+                    // while the camera is running. Face detection / recognition
+                    // never clears this interval.
+                    if (frameInterval) clearInterval(frameInterval);
                     frameInterval = setInterval(() => {
+                        if (!cameraRunning) return;
                         videoFeed.src = `/recognition/video_feed?t=${Date.now()}`;
                     }, 100);
+                    camLog('Frame processing started');
 
-                    setInterval(async () => {
-                        if (!recognitionActive) return;
+                    if (recognitionPoll) clearInterval(recognitionPoll);
+                    recognitionPoll = setInterval(async () => {
+                        if (!cameraRunning) return;
                         try {
                             const r = await apiFetch('/recognition/recognized');
-                            const faces = await r.json();
-                            const list = document.getElementById('recognized-list');
-                            if (list) {
-                                if (faces.length) {
-                                    list.innerHTML = faces.map(f => `
-                                        <div class="stat-card fade-in">
-                                            <div style="display:flex;align-items:center;gap:12px;">
-                                                <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;">
-                                                    ${f.name.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <div style="font-weight:600;">${f.name}</div>
-                                                    <div style="font-size:12px;color:var(--text-muted);">ID: ${f.student_id}</div>
-                                                    <div style="font-size:12px;color:var(--success);">${(f.confidence * 100).toFixed(1)}% confidence ${f.attendance_marked ? '<span style="background:var(--success);color:white;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px;">SAVED</span>' : ''}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `).join('');
+                            const data = await r.json();
+                            // New shape: {running, faces_detected, recognized}.
+                            // Also tolerate the old bare-list shape.
+                            const faces = data && Array.isArray(data.recognized)
+                                ? data.recognized
+                                : (Array.isArray(data) ? data : []);
+                            const facesDetected = data && typeof data === 'object' && !Array.isArray(data)
+                                ? !!data.faces_detected
+                                : false;
+                            if (faces.length) {
+                                camLog('Face recognized:', faces[0].student_id);
+                                if (faces[0].attendance_marked) {
+                                    camLog('[ATTENDANCE] Attendance submitted');
                                 }
                             }
+                            renderRecognized(faces, facesDetected);
+                            camLog('Continuing after recognition');
                         } catch (e) {}
                     }, 2000);
                 } else {
@@ -499,16 +638,20 @@ const App = {
             }
         });
 
-        stopBtn.addEventListener('click', async () => {
-            clearInterval(frameInterval);
-            await apiFetch('/recognition/stop', { method: 'POST' });
-            recognitionActive = false;
-            stopBtn.style.display = 'none';
-            startBtn.style.display = 'inline-flex';
-            startBtn.disabled = false;
-            startBtn.innerHTML = '<i class="fas fa-play"></i> Start Camera';
-            videoFeed.src = '';
-            this.toast('Recognition stopped.', 'info');
+        stopBtn.addEventListener('click', stopCamera);
+
+        // Cleanup when the page is closed / navigated away so the backend
+        // camera is released. keepalive lets the request finish during unload.
+        window.addEventListener('pagehide', () => {
+            if (!cameraRunning) return;
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            const token = meta ? meta.content : '';
+            camLog('Stopping (page closed)');
+            fetch('/recognition/stop', {
+                method: 'POST',
+                headers: token ? { 'X-CSRFToken': token } : {},
+                keepalive: true,
+            }).catch(() => {});
         });
     },
 
@@ -776,6 +919,10 @@ const App = {
 
     closeModal(id) {
         document.getElementById(id)?.classList.remove('active');
+    },
+
+    openModal(id) {
+        document.getElementById(id)?.classList.add('active');
     },
 };
 

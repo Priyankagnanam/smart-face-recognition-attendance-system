@@ -39,16 +39,55 @@ python app.py
 
 ---
 
+## Webcam Architecture (READ FIRST)
+
+> **The webcam must be physically connected to the computer that runs the
+> Flask/Gunicorn application. Recognition is 100% server-side.**
+
+- OpenCV opens the webcam (`/dev/video0`) inside the application process.
+- Face detection, encoding and attendance marking all happen on the server.
+- The browser only displays the server-provided MJPEG video feed; it never
+  accesses the camera directly.
+- A laptop or other machine on the LAN can open the app, but **the camera must
+  stay attached to the server machine**, and users must stand in front of the
+  server's webcam to be recognized.
+
+---
+
 ## Production Deployment
 
-### Option 1: Gunicorn (Linux)
+### Option 0: LAN Deployment (Recommended for this app)
+
+Because face recognition owns a single webcam, **run exactly ONE Gunicorn
+worker** (the `gunicorn.conf.py` file is already configured for this).
 
 ```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:8000 app:app
+# 1. Install
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Set SECRET KEY (required for production)
+export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+
+# 3. Run (single worker, binds 0.0.0.0:8000, logs to logs/)
+gunicorn -c gunicorn.conf.py app:app
+
+# 4. Find the server's LAN IP
+ip addr
+#   (look for the inet address on your active interface, e.g. 192.168.1.50)
+
+# 5. Access from another computer on the same LAN
+#    http://SERVER_LAN_IP:8000   (NOT 127.0.0.1)
 ```
 
-### Option 2: Gunicorn with systemd service
+Open the server firewall if needed:
+
+```bash
+sudo ufw allow 8000/tcp
+```
+
+### Option 1: Gunicorn with systemd service
 
 Create `/etc/systemd/system/face-attendance.service`:
 
@@ -63,7 +102,8 @@ WorkingDirectory=/opt/SmartFaceRecognitionAttendance
 Environment="SECRET_KEY=your-production-secret-key"
 Environment="ADMIN_USERNAME=admin"
 Environment="ADMIN_PASSWORD=your-strong-password"
-ExecStart=/opt/SmartFaceRecognitionAttendance/venv/bin/gunicorn -w 4 -b 127.0.0.1:8000 app:app
+# Exactly ONE worker: this app owns a single webcam + recognition thread.
+ExecStart=/opt/SmartFaceRecognitionAttendance/venv/bin/gunicorn -c /opt/SmartFaceRecognitionAttendance/gunicorn.conf.py app:app
 Restart=always
 
 [Install]
@@ -126,8 +166,8 @@ server {
 | Flask | 3.0+ |
 | OpenCV | 4.5+ |
 | SQLite | 3.x |
-| Gunicorn | 21.x (production) |
-| Nginx | Latest (production) |
+| Gunicorn | 21.x (production, single worker via `gunicorn.conf.py`) |
+| Nginx | Optional (reverse proxy for HTTPS/domain) |
 
 Python packages listed in `requirements.txt`
 

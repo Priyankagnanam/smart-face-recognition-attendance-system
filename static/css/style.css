@@ -752,6 +752,9 @@ tr:hover td { background: var(--bg-card-hover); }
 .modal-overlay.active { display: flex; }
 
 .modal {
+    display: block;
+    position: relative;
+    height: auto;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 20px;

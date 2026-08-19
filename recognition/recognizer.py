@@ -1,4 +1,3 @@
-import os
 import cv2
 import numpy as np
 import logging
@@ -8,6 +7,7 @@ from datetime import datetime
 from config import Config
 from recognition.trainer import FaceTrainer
 from recognition.cascades import load_face_cascade
+from recognition.preprocess import preprocess_face_crop
 from models.database import db
 from models.student import Student
 from models.attendance import Attendance
@@ -31,10 +31,38 @@ class FaceRecognizer:
             self.face_cascade = None
         self.current_frame = None
         self.recognized_faces = []
+        self.last_recognition = None
+        self.last_frame_faces = 0
         self._lock = threading.Lock()
         self.lbph_recognizer = cv2.face.LBPHFaceRecognizer_create()
         self.label_map = {}
         self._app = app
+        self._consecutive = {}
+
+    def _build_recognizer(self, model_data: dict):
+        """Build an LBPH recognizer from a model_data dict.
+
+        Returns (recognizer, label_map) or (None, {}) when there is nothing
+        trainable. label_map maps LBPH label id -> student_id.
+        """
+        faces = []
+        labels = []
+        label_map = {}
+        current_label = 0
+
+        for student_id, student_faces in model_data.items():
+            for face in student_faces:
+                faces.append(face)
+                labels.append(current_label)
+            label_map[current_label] = student_id
+            current_label += 1
+
+        if not faces:
+            return None, {}
+
+        recognizer = cv2.face.LBPHFaceRecognizer_create()
+        recognizer.train(faces, np.array(labels))
+        return recognizer, label_map
 
     def load_model(self) -> bool:
         """Load the trained face data and train LBPH recognizer."""
@@ -43,26 +71,52 @@ class FaceRecognizer:
             self.model_loaded = False
             return False
 
-        faces = []
-        labels = []
-        self.label_map = {}
-        current_label = 0
+        recognizer, label_map = self._build_recognizer(self.model_data)
+        if recognizer is None:
+            self.model_loaded = False
+            self.label_map = {}
+            return False
 
-        for student_id, student_faces in self.model_data.items():
-            for face in student_faces:
-                faces.append(face)
-                labels.append(current_label)
-            self.label_map[current_label] = student_id
-            current_label += 1
+        self.lbph_recognizer = recognizer
+        self.label_map = label_map
+        self.model_loaded = True
+        logger.info(
+            f'LBPH recognizer trained with {len(self.model_data)} students '
+            f'({sum(len(f) for f in self.model_data.values())} faces)'
+        )
+        return True
 
-        if faces:
-            self.lbph_recognizer.train(faces, np.array(labels))
+    def reload_model(self) -> bool:
+        """Rebuild the in-memory LBPH recognizer from the freshest pickle on disk.
+
+        Called after 'Settings -> Train Model' or face-capture auto-training so
+        recognition immediately uses the newly generated model instead of a stale
+        one. Safe to call while the recognition loop is running: a brand-new
+        recognizer is trained and swapped in atomically.
+        """
+        model_data = self.trainer.load_model()
+        if not model_data:
+            self.model_loaded = False
+            self.label_map = {}
+            return False
+
+        recognizer, label_map = self._build_recognizer(model_data)
+        if recognizer is None:
+            self.model_loaded = False
+            self.label_map = {}
+            return False
+
+        with self._lock:
+            self.lbph_recognizer = recognizer
+            self.label_map = label_map
+            self.model_data = model_data
             self.model_loaded = True
-            logger.info(f'LBPH recognizer trained with {len(faces)} faces across {len(self.label_map)} students')
-            return True
-
-        self.model_loaded = False
-        return False
+        logger.info(
+            f'LBPH recognizer RELOADED from {self.trainer.model_path} '
+            f'({len(model_data)} students, '
+            f'{sum(len(f) for f in model_data.values())} faces)'
+        )
+        return True
 
     def start_recognition(self):
         """Start the real-time face recognition loop.
@@ -71,6 +125,11 @@ class FaceRecognizer:
         if self.face_cascade is None:
             logger.error('Face cascade unavailable - cannot start recognition')
             return False
+
+        # If a loop is already running, stop it first so we never stack loops
+        # or hold the camera twice.
+        if self.is_running:
+            self.stop_recognition()
 
         if not self.load_model():
             logger.warning('No trained model available - camera will start without recognition')
@@ -84,6 +143,9 @@ class FaceRecognizer:
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.is_running = True
         self.recognized_faces = []
+        self.last_recognition = None
+        self.last_frame_faces = 0
+        self._consecutive = {}
         self._frame_timeout = 1.0
 
         thread = threading.Thread(target=self._recognition_loop, daemon=True)
@@ -128,6 +190,20 @@ class FaceRecognizer:
             if ctx:
                 ctx.pop()
 
+    def _update_temporal_counts(self, recognized_ids):
+        """Track how many consecutive frames each student has been recognized on.
+
+        A student's counter resets whenever they are missing from a frame, so a
+        single unstable/random frame cannot mark attendance. Returns the current
+        consecutive-frame count for every recognized student.
+        """
+        for sid in list(self._consecutive.keys()):
+            if sid not in recognized_ids:
+                del self._consecutive[sid]
+        for sid in recognized_ids:
+            self._consecutive[sid] = self._consecutive.get(sid, 0) + 1
+        return {sid: self._consecutive[sid] for sid in recognized_ids}
+
     def _recognition_loop(self):
         """Main recognition loop running in a separate thread."""
         recognized_students_today = set()
@@ -147,33 +223,63 @@ class FaceRecognizer:
             faces = self.face_cascade.detectMultiScale(
                 gray, scaleFactor=1.1, minNeighbors=5, minSize=(80, 80)
             )
+            # Prefer the largest face so we never recognize random small regions
+            # of the frame as a face.
+            faces = sorted(faces, key=lambda b: b[2] * b[3], reverse=True)
 
-            current_recognitions = []
+            face_results = []
+            recognized_this_frame = set()
 
             for (x, y, w, h) in faces:
-                face_roi = gray[y:y + h, x:x + w]
-                face_roi = cv2.resize(face_roi, (100, 100))
+                # SAME preprocessing as training (see preprocess_face_crop).
+                face_roi = preprocess_face_crop(gray[y:y + h, x:x + w])
 
                 student_id = None
-                confidence_val = 100
+                confidence_val = Config.LBPH_CONFIDENCE_THRESHOLD + 1
 
                 if self.model_loaded:
                     try:
                         label_id, confidence = self.lbph_recognizer.predict(face_roi)
-                        student_id = self.label_map.get(label_id, None)
-                        confidence_val = confidence
+                        candidate_id = self.label_map.get(label_id, None)
+                        logger.debug(
+                            'Detected face: x=%d y=%d w=%d h=%d | live face shape: %s | '
+                            'predicted student: %s | best distance: %.1f | recognition threshold: %.1f | status: %s',
+                            x, y, w, h, face_roi.shape, candidate_id, confidence,
+                            Config.LBPH_CONFIDENCE_THRESHOLD,
+                            'MATCH' if candidate_id is not None and confidence < Config.LBPH_CONFIDENCE_THRESHOLD else 'UNKNOWN'
+                        )
+                        if candidate_id is not None and confidence < Config.LBPH_CONFIDENCE_THRESHOLD:
+                            student_id = candidate_id
+                            confidence_val = confidence
                     except Exception as e:
-                        student_id = None
-                        confidence_val = 100
+                        logger.debug('Recognition prediction error: %s', e)
 
-                from config import Config as AppConfig
-                if student_id and confidence_val < AppConfig.LBPH_CONFIDENCE_THRESHOLD:
+                if student_id is not None:
+                    recognized_this_frame.add(student_id)
+                face_results.append(((x, y, w, h), student_id, confidence_val))
+
+            # Temporal confirmation: a student is only trusted after being
+            # recognized on several consecutive valid frames.
+            counts = self._update_temporal_counts(recognized_this_frame)
+
+            current_recognitions = []
+
+            for (box, student_id, confidence_val) in face_results:
+                x, y, w, h = box
+                stable_frames = counts.get(student_id, 0) if student_id else 0
+                is_confirmed = student_id is not None and stable_frames >= Config.RECOGNITION_CONSECUTIVE_FRAMES
+
+                if is_confirmed:
                     student = None
                     already_marked = False
                     if student_id not in recognized_students_today:
                         student = self._mark_attendance(student_id, confidence_val, today)
                         if student:
                             recognized_students_today.add(student_id)
+                            logger.info(
+                                'Attendance confirmed for %s after %d consecutive frames (distance=%.1f)',
+                                student.name, stable_frames, confidence_val,
+                            )
                     else:
                         already_marked = True
                         if self._app:
@@ -195,12 +301,17 @@ class FaceRecognizer:
                             'student_id': student_id,
                             'name': student.name,
                             'confidence': max(0.0, 1.0 - confidence_val / 100.0),
-                            'attendance_marked': not already_marked,
+                            'attendance_marked': student_id in recognized_students_today,
                         })
                     else:
                         cv2.rectangle(frame, (x, y), (x + w, y + h), (239, 68, 68), 2)
                         cv2.putText(frame, 'Unknown', (x, y - 10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (239, 68, 68), 2)
+                elif student_id is not None:
+                    # Recognized on this frame but not yet stable -> keep verifying.
+                    cv2.rectangle(frame, (x, y), (x + w, y + h), (245, 158, 11), 2)
+                    cv2.putText(frame, 'Verifying...', (x, y - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (245, 158, 11), 2)
                 else:
                     cv2.rectangle(frame, (x, y), (x + w, y + h), (239, 68, 68), 2)
                     cv2.putText(frame, 'Unknown', (x, y - 10),
@@ -214,6 +325,9 @@ class FaceRecognizer:
             with self._lock:
                 self.current_frame = frame
                 self.recognized_faces = current_recognitions
+                self.last_frame_faces = len(faces)
+                if current_recognitions:
+                    self.last_recognition = current_recognitions[0]
 
             time.sleep(0.03)
 
@@ -225,6 +339,10 @@ class FaceRecognizer:
             self.cap.release()
             self.cap = None
         cv2.destroyAllWindows()
+        with self._lock:
+            self.recognized_faces = []
+            self.last_recognition = None
+            self.last_frame_faces = 0
         logger.info('Face recognition stopped')
 
     def get_frame(self):
@@ -241,3 +359,21 @@ class FaceRecognizer:
         """Get list of currently recognized faces."""
         with self._lock:
             return list(self.recognized_faces)
+
+    def get_recognition_status(self) -> dict:
+        """Get the recognition state the live-attendance UI needs.
+
+        Returns the currently recognized faces, falling back to the most recent
+        confirmed recognition (so the UI keeps showing a student who was marked
+        even if recognition briefly drops on individual frames), plus whether a
+        face is currently detected. The UI never infers recognition itself.
+        """
+        with self._lock:
+            recognized = list(self.recognized_faces)
+            if not recognized and self.is_running and self.last_recognition:
+                recognized = [dict(self.last_recognition)]
+            return {
+                'running': self.is_running,
+                'faces_detected': self.last_frame_faces > 0,
+                'recognized': recognized,
+            }

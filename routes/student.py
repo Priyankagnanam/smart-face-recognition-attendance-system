@@ -1,9 +1,10 @@
 import logging
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
 from models.database import db
 from models.student import Student
 from sqlalchemy import or_
+from utils.helpers import is_valid_student_id
 
 logger = logging.getLogger(__name__)
 student_bp = Blueprint('student', __name__, url_prefix='/students')
@@ -71,6 +72,8 @@ def api_add():
     errors = []
     if not student_id:
         errors.append('Student ID is required.')
+    elif not is_valid_student_id(student_id):
+        errors.append('Student ID may only contain letters, digits, dashes and underscores.')
     if not name:
         errors.append('Name is required.')
     if not department:
